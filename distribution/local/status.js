@@ -42,17 +42,35 @@ status.stop = function(callback) {
 };
 
 status.spawn = function(conf, callback) {
+  let finished = false;
+  let timer;
+  const done = (error, value) => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timer);
+    callback(error, value);
+  };
   conf.onStart = conf.onStart || function() {};
   let f = `
     let onStart = ${conf.onStart.toString()};
-    let rpcObject = ${wire.createRPC(wire.toAsync(callback)).toString()};
+    let rpcObject = ${wire.createRPC(wire.toAsync(done)).toString()};
     onStart();
     rpcObject(null, global.nodeConfig, function() {});
   `;
   conf.onStart = new Function(f);
   const cmdPath = path.join(__dirname, '../../distribution.js');
   const serializeObj = serialization.serialize(conf);
-  spawn('node', [cmdPath, '--config', `${serializeObj}`], {detached: true, stdio: 'inherit'});
+  const child = spawn(process.execPath, [cmdPath, '--config', serializeObj], {stdio: 'inherit'});
+  child.once('error', done);
+  child.once('exit', (code) => {
+    if (!finished) done(new Error('Worker exited before startup: ' + code));
+  });
+  timer = setTimeout(() => {
+    if (!finished) {
+      child.kill('SIGTERM');
+      done(new Error('Worker startup timed out'));
+    }
+  }, 30000);
 };
 
 module.exports = status;

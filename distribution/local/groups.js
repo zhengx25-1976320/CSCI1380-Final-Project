@@ -16,9 +16,9 @@ groups.get = function(gid, callback) {
       const nodes = nodeGroups[group];
       Object.keys(nodes).forEach((id) => {
         const node = nodes[id];
-        if (!trackedIPs.has(node.ip)) {
+        if (!trackedIPs.has(node.ip + ':' + node.port)) {
           combined[id] = node;
-          trackedIPs.add(node.ip);
+          trackedIPs.add(node.ip + ':' + node.port);
         }
       });
     });
@@ -33,7 +33,9 @@ groups.get = function(gid, callback) {
   }
 };
 
-groups.put = function(gid, group, callback) {
+groups.put = function(gidConfig, group, callback) {
+  const config = typeof gidConfig === 'string' ? {gid: gidConfig} : gidConfig;
+  const gid = config.gid;
   if (typeof callback != 'function') {
     callback = () => {};
   }
@@ -42,14 +44,14 @@ groups.put = function(gid, group, callback) {
   }
   if (!global.distribution[gid]) {
     global.distribution[gid] = {};
-    global.distribution[gid].comm = require('../all/comm.js')({gid: gid});
-    global.distribution[gid].groups = require('../all/groups.js')({gid: gid});
-    global.distribution[gid].status = require('../all/status.js')({gid: gid});
-    global.distribution[gid].routes = require('../all/routes.js')({gid: gid});
-    global.distribution[gid].gossip = require('../all/gossip.js')({gid: gid});
-    global.distribution[gid].mem = require('../all/mem.js')({gid: gid});
-    global.distribution[gid].store = require('../all/store.js')({gid: gid});
-    global.distribution[gid].mr = require('../all/mr.js')({gid: gid});
+    global.distribution[gid].comm = require('../all/comm.js')(config);
+    global.distribution[gid].groups = require('../all/groups.js')(config);
+    global.distribution[gid].status = require('../all/status.js')(config);
+    global.distribution[gid].routes = require('../all/routes.js')(config);
+    global.distribution[gid].gossip = require('../all/gossip.js')(config);
+    global.distribution[gid].mem = require('../all/mem.js')(config);
+    global.distribution[gid].store = require('../all/store.js')(config);
+    global.distribution[gid].mr = require('../all/mr.js')(config);
   }
   nodeGroups[gid] = group;
   callback(null, group);

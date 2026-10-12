@@ -11,10 +11,9 @@ let groups = (config) => {
           [gid], {service: 'groups', method: 'get'}, callback);
     },
     put: (gidObj, group, callback) => {
-      let gid = typeof gidObj === 'string' ? gidObj : gidObj.gid;
-      local.groups.put(gid, group, (e, v) => {
+      local.groups.put(gidObj, group, (e, v) => {
         distribution[context.gid].comm.send(
-            [gid, group], {service: 'groups', method: 'put'}, callback);
+            [gidObj, group], {service: 'groups', method: 'put'}, callback);
       });
     },
     del: (gid, callback) => {

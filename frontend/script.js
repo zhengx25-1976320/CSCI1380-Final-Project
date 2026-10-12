@@ -5,11 +5,13 @@ function searchBooks(searchType) {
 
   if (!searchTerm) {
     document.getElementById('results').innerText = 'Please enter a search term.';
+    return;
   }
 
   console.log('Making API request', `term=${encodeURIComponent(searchTerm)}&type=${encodeURIComponent(searchType)}`);
-  fetch(`http://localhost:3000/search?term=${encodeURIComponent(searchTerm)}&type=${encodeURIComponent(searchType)}`)
+  fetch(`/search?term=${encodeURIComponent(searchTerm)}&type=${encodeURIComponent(searchType)}`)
       .then((response) => {
+        if (!response.ok) throw new Error('Search backend is unavailable');
         console.log('API request successful');
         return response.json();
       })

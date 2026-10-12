@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gutenberg-config
+data:
+  WORKER_MODE: remote
+  WORKER_HOSTS: worker-0.workers,worker-1.workers,worker-2.workers,worker-3.workers,worker-4.workers
+  WORKER_PORT: "8080"
+  RPC_PORT: "7070"
+  BIND_HOST: "0.0.0.0"
+  STORE_DIR: /data/store
+  DICTIONARY_PATH: /data/dictionary.txt

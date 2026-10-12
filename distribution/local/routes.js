@@ -17,6 +17,11 @@ const routes = {
     }
   },
 
+  del: function(name, callback) {
+    delete services[name];
+    callback(null, true);
+  },
+
   put: function(service, name, callback) {
     services[name] = service;
     callback(null, 'service added');

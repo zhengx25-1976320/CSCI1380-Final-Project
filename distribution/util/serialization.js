@@ -120,6 +120,9 @@ function createNativeMap() {
             return;
         _0x587eee[_0x3ae67f(0x1ac)](_0x3021f3), Object['getOwnPropertyNames'](_0x3021f3)[_0x3ae67f(0x1f8)](_0x51f94 => {
             const _0x324760 = _0x3ae67f;
+            // Register data properties without invoking getters (e.g. Node's localStorage).
+            const descriptor = Object.getOwnPropertyDescriptor(_0x3021f3, _0x51f94);
+            if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) return;
             if (_0x3a96b4[_0x324760(0x1b9)](isNativeFunction, _0x3021f3[_0x51f94])) {
                 nativeFunctions[_0x324760(0x1ea)][_0x324760(0x1d8)](_0x3021f3[_0x51f94], _0x3a96b4[_0x324760(0x1af)](_0x11a5b9, '.') + _0x51f94), nativeFunctions[_0x324760(0x195)][_0x324760(0x1d8)](_0x3a96b4['phlar'](_0x3a96b4[_0x324760(0x1af)](_0x11a5b9, '.'), _0x51f94), _0x3021f3[_0x51f94]);
                 return;

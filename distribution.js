@@ -7,12 +7,11 @@ global.cheerio = require('cheerio');
 global.JSDOM = require('jsdom').JSDOM;
 global.natural = require('natural');
 
-process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0;
 
 // Default configuration
 global.nodeConfig = global.nodeConfig || {
-  ip: '127.0.0.1',
-  port: 8080,
+  ip: process.env.NODE_HOST || '127.0.0.1',
+  port: Number(process.env.RPC_PORT || 8080),
   onStart: () => {
     console.log('Node started!');
   },

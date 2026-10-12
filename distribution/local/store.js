@@ -1,177 +1,116 @@
-//  ________________________________________
-// / NOTE: You should use absolute paths to \
-// | make sure they are agnostic to where   |
-// | your code is running from! Use the     |
-// \ `path` module for that purpose.        /
-//  ----------------------------------------
-//         \   ^__^
-//          \  (oo)\_______
-//             (__)\       )\/\
-//                 ||----w |
-//                 ||     ||
-
-const node = global.nodeConfig;
-const id = require('../util/id');
 const fs = require('fs');
 const path = require('path');
+const id = require('../util/id');
 const serialization = require('../util/serialization');
 
-const store = {};
+const root = path.resolve(process.env.STORE_DIR || path.join(__dirname, '../../store'));
+const nodePath = path.join(root, id.getSID(global.nodeConfig));
+fs.mkdirSync(nodePath, {recursive: true});
 
-const basePath = path.join(__dirname, '../../store');
-if (!fs.existsSync(basePath)) {
-  fs.mkdirSync(basePath);
+function configOf(config, object) {
+  const c = typeof config === 'string' ? {key: config} : {...(config || {})};
+  c.gid = c.gid || 'local';
+  if (c.key == null && object !== undefined) c.key = id.getID(object);
+  if (typeof c.gid !== 'string' || !/^[a-zA-Z0-9_-]+$/.test(c.gid)) throw new Error('Invalid group');
+  if (c.key != null && typeof c.key !== 'string') throw new Error('Invalid key');
+  return c;
 }
 
-const dirPath = path.join(__dirname, '../../store', id.getSID(node));
-if (!fs.existsSync(dirPath)) {
-  fs.mkdirSync(dirPath);
+function location(c) {
+  const folder = path.join(nodePath, c.gid);
+  fs.mkdirSync(folder, {recursive: true});
+  // Encode path separators in keys; terms themselves remain visible to the API.
+  return c.key == null ? folder : path.join(folder, encodeURIComponent(c.key));
 }
 
-function getConfig(config, object) {
-  let configuration = {};
-  if (typeof config === 'string') {
-    configuration.key = config;
-    configuration.gid = 'local';
-  } else if (typeof config === 'object') {
-    configuration = config || {};
-  }
-  if (object) {
-    configuration.key = configuration.key || id.getID(object);
-  }
-  configuration.gid = configuration.gid || 'local';
-  return configuration;
+// Older checkouts stored literal spaces and punctuation in filenames.
+// Reuse those files without renaming or deleting an existing corpus.
+function existingLocation(c) {
+  const encoded = location(c);
+  if (c.key == null || fs.existsSync(encoded)) return encoded;
+  if (c.key === '.' || c.key === '..' || /[\\/\0]/.test(c.key)) return encoded;
+  const legacy = path.join(nodePath, c.gid, c.key);
+  return fs.existsSync(legacy) ? legacy : encoded;
 }
 
-function createGroupFolder(groupName) {
-  if (!groupName) return;
-  const dirPath = path.join(__dirname, '../../store', id.getSID(node),
-      groupName);
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath);
-  }
-}
-
-store.put = function(object, config, callback) {
-  callback = callback || function() {};
-
-  config = getConfig(config, object);
-  createGroupFolder(config.gid);
-  const filePath = path.join(__dirname, '../../store', id.getSID(node),
-      config.gid, config.key);
-  fs.writeFileSync(filePath, serialization.serialize(object));
-  callback(null, object);
-};
-
-store.append = function(object, configuration, callback) {
-  callback = callback || function() {};
-
-  if (!Array.isArray(object)) {
-    object = [object];
-  }
-
-  configuration = getConfig(configuration, object);
-
-  const filename = path.join(__dirname, '../../store', id.getSID(node),
-      configuration.gid, configuration.key);
-
+function decodeKey(key) {
   try {
-    fs.accessSync(filename);
-
-    // File exists, read and update its contents
-    let data = fs.readFileSync(filename, 'utf8');
-    data = serialization.deserialize(data);
-
-    let serialized;
-    object.forEach((o) => {
-      if (Array.isArray(data)) {
-        data.push(o);
-        serialized = serialization.serialize(data);
-      } else {
-        let list = [data, o];
-        serialized = serialization.serialize(list);
-      }
-    });
-
-    fs.writeFileSync(filename, serialized);
-  } catch (err) {
-    // File doesn't exist or there's an error accessing it
-    let serialized = serialization.serialize(object);
-    fs.writeFileSync(filename, serialized);
+    return decodeURIComponent(key);
+  } catch (error) {
+    return key;
   }
+}
 
-  // If you need to return something, you can do it here
-  callback(null, object);
-};
+function atomicWrite(file, value) {
+  const temporary = file + '.tmp';
+  fs.writeFileSync(temporary, serialization.serialize(value));
+  fs.renameSync(temporary, file);
+}
 
-store.appendAll = function(objectDict, configuration, callback) {
-  callback = callback || function() { };
-  configuration = getConfig(configuration);
-
-  let count = 0;
-  let allObjects = [];
-  let keys = Object.keys(objectDict);
-  if (count === Object.keys(objectDict).length) {
-    callback(null, allObjects);
-  }
-  for (let key of keys) {
-    store.append(objectDict[key],
-        {
-          key: key, gid: configuration.gid,
-        },
-        (e, v) => {
-          if (v) {
-            count++;
-            allObjects.push(v);
-            if (count === Object.keys(objectDict).length) {
-              callback(null, allObjects);
-            }
-          }
-        });
-  }
-};
-
-store.get = function(config, callback) {
-  callback = callback || function() {};
-  config = getConfig(config);
-  createGroupFolder(config.gid);
-
-  if (config.key == null) {
-    const filePath = path.join(__dirname, '../../store', id.getSID(node),
-        config.gid);
-    fs.readdir(filePath, (err, files) => {
-      if (err) {
-        console.log(err);
-      }
-      // console.log('LOCAL STORE GET: ', files);
-      callback(null, files);
-    });
-  } else {
-    const filePath = path.join(__dirname, '../../store', id.getSID(node),
-        config.gid, config.key);
-    if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, 'utf8');
-      callback(null, serialization.deserialize(content));
-    } else {
-      callback(new Error('Invalid Name'), null);
+const store = {
+  put: (object, config, callback = () => {}) => {
+    try {
+      atomicWrite(existingLocation(configOf(config, object)), object);
+      callback(null, object);
+    } catch (error) {
+      callback(Object.assign(new Error(error.message), {code: error.code}));
     }
-  }
+  },
+  get: (config, callback = () => {}) => {
+    try {
+      const c = configOf(config);
+      const file = existingLocation(c);
+      const value = c.key == null ?
+        fs.readdirSync(file).filter((key) => !key.endsWith('.tmp')).map(decodeKey) :
+        serialization.deserialize(fs.readFileSync(file, 'utf8'));
+      callback(null, value);
+    } catch (error) {
+      callback(Object.assign(new Error(error.message), {code: error.code}));
+    }
+  },
+  del: (config, callback = () => {}) => {
+    try {
+      const file = existingLocation(configOf(config));
+      const value = serialization.deserialize(fs.readFileSync(file, 'utf8'));
+      fs.unlinkSync(file);
+      callback(null, value);
+    } catch (error) {
+      callback(Object.assign(new Error(error.message), {code: error.code}));
+    }
+  },
+  append: (object, config, callback = () => {}) => {
+    try {
+      const file = existingLocation(configOf(config, object));
+      const old = fs.existsSync(file) ? serialization.deserialize(fs.readFileSync(file, 'utf8')) : [];
+      const values = (Array.isArray(old) ? old : [old]).concat(Array.isArray(object) ? object : [object]);
+      // Synchronous read/modify/rename keeps RPC appends serialized within this worker.
+      atomicWrite(file, values);
+      callback(null, object);
+    } catch (error) {
+      callback(Object.assign(new Error(error.message), {code: error.code}));
+    }
+  },
+  appendAll: (objects, config, callback = () => {}) => {
+    const values = [];
+    for (const key of Object.keys(objects)) {
+      let failure;
+      store.append(objects[key], {...config, key}, (error, value) => {
+        failure = error;
+        values.push(value);
+      });
+      if (failure) return callback(failure);
+    }
+    callback(null, values);
+  },
+  clearGroup: (gid, callback = () => {}) => {
+    try {
+      const c = configOf({gid});
+      if (!/^mr_[a-f0-9]+_(map|shuffle)$/.test(c.gid)) throw new Error('Only job storage can be cleared');
+      fs.rmSync(path.join(nodePath, c.gid), {recursive: true, force: true});
+      callback(null, true);
+    } catch (error) {
+      callback(Object.assign(new Error(error.message), {code: error.code}));
+    }
+  },
 };
-
-store.del = function(config, callback) {
-  callback = callback || function() {};
-  config = getConfig(config);
-  createGroupFolder(config.gid);
-
-  const filePath = path.join(__dirname, '../../store', id.getSID(node),
-      config.gid, config.key);
-  if (fs.existsSync(filePath)) {
-    const content = fs.readFileSync(filePath, 'utf8');
-    fs.unlinkSync(filePath);
-    callback(null, serialization.deserialize(content));
-  } else {
-    callback(new Error('Invalid Name'), null);
-  }
-};
-
 module.exports = store;

@@ -1,147 +1,53 @@
 const http = require('http');
-const url = require('url');
-
-let local = require('../local/local');
+const fs = require('fs');
+const path = require('path');
+const local = require('./local');
 const serialization = require('../util/serialization');
 
-/*
-    The start function will be called to start your node.
-    It will take a callback as an argument.
-    After your node has booted, you should call the callback.
-*/
-
-
-function isValidBody(body) {
-  error = undefined;
-  if (body.length === 0) {
-    return new Error('No body');
-  }
-
-  try {
-    body = JSON.parse(body);
-  } catch (error) {
-    return error;
-  }
-
-  return error;
-}
-
-
-const start = function(onStart) {
+const start = function(onStart = () => {}) {
   const server = http.createServer((req, res) => {
-    /* Your server will be listening for PUT requests. */
-
-    // Write some code...
-
-    if (req.method !== 'PUT') {
-      res.end(serialization.serialize(new Error('Method not allowed!')));
+    const pathname = new URL(req.url, 'http://localhost').pathname;
+    if (req.method === 'GET' && ['/healthz', '/readyz'].includes(pathname)) {
+      try {
+        if (pathname === '/readyz') {
+          const root = path.resolve(process.env.STORE_DIR || path.join(__dirname, '../../store'));
+          fs.accessSync(root, fs.constants.R_OK | fs.constants.W_OK);
+        }
+        res.end('ok');
+      } catch (error) {
+        res.statusCode = 503;
+        res.end(error.message);
+      }
       return;
     }
-
-    /*
-      The path of the http request will determine the service to be used.
-      The url will have the form: http://node_ip:node_port/service/method
-    */
-
-
-    // Write some code...
-
-
-    const pathname = url.parse(req.url).pathname;
-    const [, service, method] = pathname.split('/');
-
-    // console.log(`[SERVER] (${global.nodeConfig.ip}:${global.nodeConfig.port})
-    //     Request: ${service}:${method}`);
-
-
-    /*
-
-      A common pattern in handling HTTP requests in Node.js is to have a
-      subroutine that collects all the data chunks belonging to the same
-      request. These chunks are aggregated into a body variable.
-
-      When the req.on('end') event is emitted, it signifies that all data from
-      the request has been received. Typically, this data is in the form of a
-      string. To work with this data in a structured format, it is often parsed
-      into a JSON object using JSON.parse(body), provided the data is in JSON
-      format.
-
-      Our nodes expect data in JSON format.
-  */
-
-    // Write some code...
-
-
-    let body = [];
-
-    req.on('data', (chunk) => {
-      body.push(chunk);
-    });
-
+    const reply = (error, value) => {
+      if (!res.writableEnded) res.end(serialization.serialize([error, value]));
+    };
+    if (req.method !== 'PUT') return reply(new Error('Method not allowed'));
+    const [, name, method] = pathname.split('/');
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
-      body = Buffer.concat(body).toString();
-
-      let error;
-
-      if (error = isValidBody(body)) {
-        res.end(serialization.serialize(error));
-        return;
+      try {
+        const args = serialization.deserialize(Buffer.concat(chunks).toString());
+        if (!Array.isArray(args)) throw new Error('RPC arguments must be an array');
+        local.routes.get(name, (error, service) => {
+          if (error) return reply(error);
+          if (typeof service[method] !== 'function') return reply(new Error('Unknown RPC method'));
+          try {
+            const result = service[method](...args, reply);
+            if (result && typeof result.catch === 'function') result.catch(reply);
+          } catch (error) {
+            reply(error);
+          }
+        });
+      } catch (error) {
+        reply(error);
       }
-
-      body = JSON.parse(body);
-      body = serialization.deserialize(body);
-      let args = body;
-
-
-      /* Here, you can handle the service requests. */
-
-      // Write some code...
-
-      local.routes.get(service, (error, service) => {
-        if (error) {
-          res.end(serialization.serialize(error));
-          console.error(error);
-          return;
-        }
-
-        /*
-      Here, we provide a default callback which will be passed to services.
-      It will be called by the service with the result of it's call
-      then it will serialize the result and send it back to the caller.
-        */
-        const serviceCallback = (e, v) => {
-          res.end(serialization.serialize([e, v]));
-        };
-
-        // Write some code...
-
-
-        // console.log(`[SERVER] Args: ${JSON.stringify(args)}
-        //     ServiceCallback: ${serviceCallback}`);
-
-        service[method](...args, serviceCallback);
-      });
     });
+    req.on('error', reply);
   });
-
-
-  // Write some code...
-
-  /*
-    Your server will be listening on the port and ip specified in the config
-    You'll be calling the onStart callback when your server has successfully
-    started.
-
-    In this milestone, we'll be adding the ability to stop a node
-    remotely through the service interface.
-  */
-
-  server.listen(global.nodeConfig.port, global.nodeConfig.ip, () => {
-    console.log(`Server running at http://${global.nodeConfig.ip}:${global.nodeConfig.port}/`);
-    onStart(server);
-  });
+  server.listen(global.nodeConfig.port, process.env.BIND_HOST || global.nodeConfig.ip, () => onStart(server));
+  return server;
 };
-
-module.exports = {
-  start: start,
-};
+module.exports = {start};

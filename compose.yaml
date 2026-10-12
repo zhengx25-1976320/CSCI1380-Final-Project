@@ -1,0 +1,106 @@
+services:
+  web:
+    build: .
+    image: gutenberg-search:local
+    init: true
+    ports: ["3000:3000"]
+    environment:
+      WORKER_MODE: remote
+      WORKER_HOSTS: worker-0,worker-1,worker-2,worker-3,worker-4
+      NODE_HOST: web
+      RPC_PORT: "7070"
+      DICTIONARY_PATH: /data/dictionary.txt
+    volumes: ["coordinator-data:/data"]
+    depends_on:
+      worker-0:
+        condition: service_healthy
+      worker-1:
+        condition: service_healthy
+      worker-2:
+        condition: service_healthy
+      worker-3:
+        condition: service_healthy
+      worker-4:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+  worker-0:
+    build: .
+    image: gutenberg-search:local
+    init: true
+    command: ["node", "distribution.js"]
+    environment:
+      NODE_HOST: worker-0
+      RPC_PORT: "8080"
+    volumes: ["worker-0-data:/data"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  worker-1:
+    build: .
+    image: gutenberg-search:local
+    init: true
+    command: ["node", "distribution.js"]
+    environment:
+      NODE_HOST: worker-1
+      RPC_PORT: "8080"
+    volumes: ["worker-1-data:/data"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  worker-2:
+    build: .
+    image: gutenberg-search:local
+    init: true
+    command: ["node", "distribution.js"]
+    environment:
+      NODE_HOST: worker-2
+      RPC_PORT: "8080"
+    volumes: ["worker-2-data:/data"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  worker-3:
+    build: .
+    image: gutenberg-search:local
+    init: true
+    command: ["node", "distribution.js"]
+    environment:
+      NODE_HOST: worker-3
+      RPC_PORT: "8080"
+    volumes: ["worker-3-data:/data"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  worker-4:
+    build: .
+    image: gutenberg-search:local
+    init: true
+    command: ["node", "distribution.js"]
+    environment:
+      NODE_HOST: worker-4
+      RPC_PORT: "8080"
+    volumes: ["worker-4-data:/data"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+volumes:
+  coordinator-data:
+  worker-0-data:
+  worker-1-data:
+  worker-2-data:
+  worker-3-data:
+  worker-4-data:

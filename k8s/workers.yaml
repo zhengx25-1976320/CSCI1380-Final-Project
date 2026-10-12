@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: workers
+spec:
+  clusterIP: None
+  selector:
+    app: gutenberg-worker
+  ports:
+    - name: rpc
+      port: 8080
+      targetPort: rpc
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: worker
+spec:
+  serviceName: workers
+  replicas: 5
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: gutenberg-worker
+  template:
+    metadata:
+      labels:
+        app: gutenberg-worker
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: worker
+          image: gutenberg-search:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "distribution.js"]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_HOST
+              value: "$(POD_NAME).workers"
+            - name: BIND_HOST
+              value: "0.0.0.0"
+            - name: RPC_PORT
+              value: "8080"
+            - name: STORE_DIR
+              value: /data/store
+          ports:
+            - name: rpc
+              containerPort: 8080
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          startupProbe:
+            httpGet: {path: /healthz, port: rpc}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /readyz, port: rpc}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: {path: /healthz, port: rpc}
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests: {cpu: "100m", memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 5Gi

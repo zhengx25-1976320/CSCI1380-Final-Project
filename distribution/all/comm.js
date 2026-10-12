@@ -13,6 +13,7 @@ let comm = (config) => {
         } else {
           let counter = Object.keys(nodeGroup).length;
           //   console.log(counter);
+          if (counter === 0) return callback({}, {});
           let values = {};
           let errors = {};
           //   console.log('Start local.comm.send to ', counter, ' nodes!');

@@ -14,20 +14,32 @@
   },
   "scripts": {
     "test": "jest --maxWorkers 1",
-    "lint": "eslint --ignore-path .gitignore ."
+    "lint": "eslint --ignore-path .gitignore .",
+    "start": "node workflows/server.js",
+    "preprocess": "node workflows/preprocess.js",
+    "worker": "node distribution.js",
+    "test:integration": "node --test integration/cluster.test.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "async": "^3.2.5",
     "async": "^3.2.5",
     "cheerio": "^1.0.0-rc.12",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "http": "^0.0.1-security",
     "https": "^1.0.0",
+    "jsdom": "26.1.0",
     "natural": "^7.0.5",
     "node-fetch": "^2.7.0",
     "yargs": "^17.7.2"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "jest": {
+    "testMatch": [
+      "<rootDir>/test/**/*.test.js"
+    ]
   }
 }

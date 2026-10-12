@@ -1,0 +1,38 @@
+# Apply separately after all five workers are ready and before deploying web.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: preprocess
+  namespace: gutenberg
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: preprocess
+          image: gutenberg-search:local
+          imagePullPolicy: IfNotPresent
+          command: ["node", "workflows/preprocess.js"]
+          envFrom:
+            - configMapRef:
+                name: gutenberg-config
+          env:
+            - name: NODE_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests: {cpu: "100m", memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: coordinator-data

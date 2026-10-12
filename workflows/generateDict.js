@@ -1,27 +1,17 @@
-const fs = require('fs').promises;
+const fs = require('fs');
 const path = require('path');
-
-async function listFilesRecursively(dir, outputFile) {
-  try {
-    const entries = await fs.readdir(dir, {withFileTypes: true});
-    for (const entry of entries) {
-      const entryPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await listFilesRecursively(entryPath, outputFile);
-      } else {
-        if (entry.name !== '.DS_Store') {
-          await fs.appendFile(outputFile, entry.name + '\n');
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Error reading directory:', err);
-  }
+const cluster = require('./cluster');
+async function generateDict() {
+  const keys = await cluster.call(cluster.distribution.crawler.store.get, null);
+  const file = process.env.DICTIONARY_PATH || path.join(__dirname, 'dictionary.txt');
+  fs.mkdirSync(path.dirname(file), {recursive: true});
+  fs.writeFileSync(file, [...new Set(keys)].sort().join('\n') + '\n');
+  console.log('Dictionary generated');
 }
-
-const folderPath = path.join(__dirname, '../store');
-const outputFilePath = path.join(__dirname, 'dictionary.txt');
-
-listFilesRecursively(folderPath, outputFilePath)
-    .then(() => console.log('All file names have been written to dictionary.txt'))
-    .catch((err) => console.error('Error during file processing:', err));
+if (require.main === module) {
+  cluster.run(generateDict).catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
+module.exports = {generateDict};
